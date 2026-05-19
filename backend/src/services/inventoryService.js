@@ -1,5 +1,6 @@
-import { HttpError } from "../utils/httpError.js";
 import { createId } from "../utils/id.js";
+import { comparePassword, createAuthToken } from "../utils/auth.js";
+import { HttpError } from "../utils/httpError.js";
 
 const collections = {
   categories: "cat",
@@ -17,12 +18,10 @@ export class InventoryService {
   }
 
   async list(collection) {
-    const store = await this.repository.read();
-    return store[collection];
+    return this.repository.list(collection);
   }
 
   async createEntity(collection, payload) {
-    const store = await this.repository.read();
     const item = {
       id: createId(collections[collection]),
       ...payload
@@ -32,188 +31,84 @@ export class InventoryService {
       item.createdAt = new Date().toISOString();
     }
 
-    store[collection].unshift(item);
-    await this.repository.write(store);
-    return item;
+    return this.repository.createEntity(collection, item);
   }
 
   async updateEntity(collection, id, payload) {
-    const store = await this.repository.read();
-    const index = store[collection].findIndex((item) => item.id === id);
-
-    if (index === -1) {
-      throw new HttpError(404, `${collection.slice(0, -1)} not found`);
-    }
-
-    store[collection][index] = {
-      ...store[collection][index],
+    return this.repository.updateEntity(collection, id, {
       ...payload,
       id
-    };
-
-    await this.repository.write(store);
-    return store[collection][index];
+    });
   }
 
   async deleteEntity(collection, id) {
-    const store = await this.repository.read();
-    const index = store[collection].findIndex((item) => item.id === id);
-
-    if (index === -1) {
-      throw new HttpError(404, `${collection.slice(0, -1)} not found`);
-    }
-
-    const [removed] = store[collection].splice(index, 1);
-    await this.repository.write(store);
-    return removed;
+    return this.repository.deleteEntity(collection, id);
   }
 
   async createPurchase(payload) {
-    return this.#createTransaction("purchase", payload);
+    return this.repository.createPurchase(payload);
   }
 
   async createSale(payload) {
-    return this.#createTransaction("sale", payload);
+    return this.repository.createSale(payload);
   }
 
   async createAdjustment(payload) {
-    const store = await this.repository.read();
-    const product = store.products.find((item) => item.id === payload.productId);
-
-    if (!product) {
-      throw new HttpError(400, "Product does not exist");
-    }
-
-    const quantity = Number(payload.quantity);
-    const type = payload.type === "decrease" ? "decrease" : "increase";
-
-    if (type === "decrease" && product.quantity < quantity) {
-      throw new HttpError(400, "Adjustment exceeds available stock");
-    }
-
-    product.quantity += type === "increase" ? quantity : -quantity;
-
-    const adjustment = {
-      id: createId("adj"),
-      productId: payload.productId,
-      quantity,
-      type,
-      reason: payload.reason || "",
-      createdAt: new Date().toISOString()
-    };
-
-    store.adjustments.unshift(adjustment);
-    store.stockMovements.unshift({
-      id: createId("mov"),
-      productId: payload.productId,
-      type: "adjustment",
-      direction: type === "increase" ? "in" : "out",
-      quantity,
-      reference: adjustment.id,
-      note: payload.reason || "Manual stock adjustment",
-      createdAt: adjustment.createdAt
-    });
-
-    await this.repository.write(store);
-    return adjustment;
+    return this.repository.createAdjustment(payload);
   }
 
   async getDashboard() {
-    const store = await this.repository.read();
-    const inventoryValue = store.products.reduce(
-      (sum, item) => sum + Number(item.quantity) * Number(item.costPrice),
-      0
-    );
-    const lowStock = store.products.filter(
-      (item) => Number(item.quantity) <= Number(item.reorderLevel)
-    );
-    const salesTotal = store.sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
-    const purchaseTotal = store.purchases.reduce(
-      (sum, purchase) => sum + Number(purchase.totalAmount),
-      0
-    );
+    return this.repository.getDashboard();
+  }
+
+  async login(payload) {
+    const email = payload?.email?.trim().toLowerCase();
+    const password = payload?.password || "";
+
+    if (!email || !password) {
+      throw new HttpError(400, "Email and password are required");
+    }
+
+    const user = await this.repository.getUserByEmail(email);
+
+    if (!user || !user.isActive) {
+      throw new HttpError(401, "Invalid email or password");
+    }
+
+    const matches = await comparePassword(password, user.passwordHash);
+
+    if (!matches) {
+      throw new HttpError(401, "Invalid email or password");
+    }
+
+    const safeUser = this.#sanitizeUser(user);
 
     return {
-      metrics: {
-        totalProducts: store.products.length,
-        totalCategories: store.categories.length,
-        totalSuppliers: store.suppliers.length,
-        totalCustomers: store.customers.length,
-        inventoryValue,
-        salesTotal,
-        purchaseTotal,
-        lowStockCount: lowStock.length
-      },
-      lowStock,
-      recentMovements: store.stockMovements.slice(0, 8),
-      topProducts: [...store.products]
-        .sort((a, b) => Number(a.quantity) - Number(b.quantity))
-        .slice(0, 5)
+      token: createAuthToken(safeUser),
+      user: safeUser
     };
   }
 
-  async #createTransaction(kind, payload) {
-    const store = await this.repository.read();
-    const items = payload.items || [];
-
-    if (!items.length) {
-      throw new HttpError(400, "At least one item is required");
+  async getCurrentUser(userId) {
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
     }
 
-    let totalAmount = 0;
+    const user = await this.repository.getUserById(userId);
 
-    const normalizedItems = items.map((item) => {
-      const product = store.products.find((entry) => entry.id === item.productId);
+    if (!user || !user.isActive) {
+      throw new HttpError(401, "User not available");
+    }
 
-      if (!product) {
-        throw new HttpError(400, "Transaction contains an invalid product");
-      }
+    return this.#sanitizeUser(user);
+  }
 
-      const quantity = Number(item.quantity);
-      const unitPrice = Number(item.unitPrice ?? (kind === "sale" ? product.price : product.costPrice));
-
-      if (kind === "sale" && product.quantity < quantity) {
-        throw new HttpError(400, `Insufficient stock for ${product.name}`);
-      }
-
-      totalAmount += quantity * unitPrice;
-
-      return {
-        productId: product.id,
-        productName: product.name,
-        quantity,
-        unitPrice,
-        lineTotal: quantity * unitPrice
-      };
-    });
-
-    const entity = {
-      id: createId(kind === "sale" ? "sal" : "pur"),
-      supplierId: payload.supplierId || null,
-      customerId: payload.customerId || null,
-      notes: payload.notes || "",
-      items: normalizedItems,
-      totalAmount,
-      createdAt: new Date().toISOString()
+  #sanitizeUser(user) {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
     };
-
-    normalizedItems.forEach((item) => {
-      const product = store.products.find((entry) => entry.id === item.productId);
-      product.quantity += kind === "purchase" ? item.quantity : -item.quantity;
-      store.stockMovements.unshift({
-        id: createId("mov"),
-        productId: item.productId,
-        type: kind,
-        direction: kind === "purchase" ? "in" : "out",
-        quantity: item.quantity,
-        reference: entity.id,
-        note: `${kind === "purchase" ? "Purchase" : "Sale"} transaction`,
-        createdAt: entity.createdAt
-      });
-    });
-
-    store[kind === "purchase" ? "purchases" : "sales"].unshift(entity);
-    await this.repository.write(store);
-    return entity;
   }
 }

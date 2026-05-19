@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/authMiddleware.js";
 
 export function createRoutes(controller) {
   const router = Router();
@@ -6,6 +7,11 @@ export function createRoutes(controller) {
   router.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  router.post("/auth/login", controller.login);
+  router.get("/auth/me", requireAuth, controller.me);
+
+  router.use(requireAuth);
 
   router.get("/dashboard", controller.dashboard);
 

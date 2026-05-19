@@ -74,4 +74,22 @@ export class InventoryController {
       next(error);
     }
   };
+
+  login = async (req, res, next) => {
+    try {
+      const data = await this.service.login(req.body);
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  me = async (req, res, next) => {
+    try {
+      const data = await this.service.getCurrentUser(req.user?.sub);
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

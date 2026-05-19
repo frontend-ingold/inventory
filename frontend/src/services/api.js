@@ -1,9 +1,15 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/$/, "");
+let authToken = "";
+
+export function setAuthToken(token) {
+  authToken = token || "";
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -18,6 +24,8 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  login: (payload) => request("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  getCurrentUser: () => request("/auth/me"),
   getDashboard: () => request("/dashboard"),
   getProducts: () => request("/products"),
   createProduct: (payload) => request("/products", { method: "POST", body: JSON.stringify(payload) }),
