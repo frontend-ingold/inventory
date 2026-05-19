@@ -12,6 +12,7 @@ export function createApp() {
   const repository = new PostgresRepository(getPool());
   const service = new InventoryService(repository);
   const controller = new InventoryController(service);
+  const router = createRoutes(controller);
 
   app.use(
     cors({
@@ -29,7 +30,8 @@ export function createApp() {
     })
   );
   app.use(express.json());
-  app.use("/api", createRoutes(controller));
+  app.use("/api", router);
+  app.use(router);
 
   app.use((error, _req, res, _next) => {
     console.error(error);
