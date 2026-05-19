@@ -1,0 +1,68 @@
+{
+  "categories": [
+    {
+      "id": "cat-raw-materials",
+      "name": "Raw Materials",
+      "description": "Core manufacturing and assembly inputs"
+    },
+    {
+      "id": "cat-finished-goods",
+      "name": "Finished Goods",
+      "description": "Sellable products ready for dispatch"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "sup-alpha",
+      "name": "Alpha Industrial Supply",
+      "email": "sales@alphaindustrial.example",
+      "phone": "+1-555-101-0001",
+      "address": "120 Market Street, Chicago"
+    }
+  ],
+  "customers": [
+    {
+      "id": "cus-retail-one",
+      "name": "Retail One",
+      "email": "buyer@retailone.example",
+      "phone": "+1-555-201-0001",
+      "address": "8 Commerce Avenue, Austin"
+    }
+  ],
+  "products": [
+    {
+      "id": "prd-steel-bolt",
+      "sku": "BOLT-1001",
+      "name": "Steel Bolt",
+      "categoryId": "cat-raw-materials",
+      "supplierId": "sup-alpha",
+      "unit": "pcs",
+      "price": 2.5,
+      "costPrice": 1.4,
+      "quantity": 450,
+      "reorderLevel": 120,
+      "status": "active",
+      "description": "Standard steel fastening bolt",
+      "createdAt": "2026-05-19T08:00:00.000Z"
+    },
+    {
+      "id": "prd-toolkit-pro",
+      "sku": "TLKIT-3001",
+      "name": "Toolkit Pro",
+      "categoryId": "cat-finished-goods",
+      "supplierId": "sup-alpha",
+      "unit": "box",
+      "price": 125,
+      "costPrice": 88,
+      "quantity": 35,
+      "reorderLevel": 20,
+      "status": "active",
+      "description": "Finished maintenance toolkit",
+      "createdAt": "2026-05-19T08:10:00.000Z"
+    }
+  ],
+  "purchases": [],
+  "sales": [],
+  "adjustments": [],
+  "stockMovements": []
+}
