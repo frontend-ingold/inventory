@@ -1,4 +1,24 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/$/, "");
+function resolveApiBaseUrl() {
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL;
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5000/api";
+    }
+
+    return "https://inventory-backend-liart.vercel.app/api";
+  }
+
+  return "https://inventory-backend-liart.vercel.app/api";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 let authToken = "";
 
 export function setAuthToken(token) {
